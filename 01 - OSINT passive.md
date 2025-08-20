@@ -141,34 +141,40 @@ censys search "services.service_name: HTTP AND ip:10.10.10.0/24" --output result
 
 ```
 ---
-## Sublist3r - Enumeração de subdomínios via fontes públicas
+## Sublist3r
+### Enumeração de subdomínios via fontes públicas
 
 ```bash
 sublist3r -d dominio.com 
 ```
 
-## subfinder – Enumeração via APIs públicas
+## subfinder 
+### Enumeração via APIs públicas
 ```bash
 subfinder -d dominio.com -all -silent
 ```
-## amass (modo passivo) – Coleta em fontes abertas
+## amass (modo passivo) 
+### Coleta em fontes abertas
 
 ```bash
 amass intel -d dominio.com -o subdominios.txt
 ```
 
-## assetfinder – Subdomínios conhecidos 
+## assetfinder 
+### Subdomínios conhecidos 
 
 ```bash
 assetfinder --subs-only dominio.com
 ```
-## crobat – Consulta rápida de subdomínios
+## crobat 
+### Consulta rápida de subdomínios
 
 ```bash
 crobat -s dominio.com
 ```
 
-## gau – Coleta URLs de fontes públicas (Wayback, Common Crawl, etc).
+## gau 
+### Coleta URLs de fontes públicas (Wayback, Common Crawl, etc).
 
 ```bash
 gau dominio.com
