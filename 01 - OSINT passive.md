@@ -22,6 +22,7 @@
 ```bash
 https://www.exploit-db.com/google-hacking-database
 ex:
+site:*.domain.com -site:www.domain.com
 https://www.google.com/search?q=site:linkedin.com+$target
 https://google.com/search?q=site:pastebin.com+$target
 https://google.com/search?q=site:trello.com
@@ -141,6 +142,13 @@ censys search "services.service_name: HTTP AND ip:10.10.10.0/24" --output result
 
 ```
 ---
+
+## DNS Recon
+
+## crt.sh
+```bash
+https://crt.sh/
+```
 ## Sublist3r
 ### Enumeração de subdomínios via fontes públicas
 
