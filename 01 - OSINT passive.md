@@ -180,6 +180,25 @@ assetfinder --subs-only dominio.com
 ```bash
 crobat -s dominio.com
 ```
+## VirusTotal
+```bash
+https://www.virustotal.com/gui/home/url
+```
+## DNSDumpster
+```bash
+https://dnsdumpster.com/
+```
+## SecurityTrails
+```bash
+https://securitytrails.com/
+```
+## Coleta por certificados digitais
+### Certificado https que possui certificação SSL
+### Tem um projeto de transparencia sobre a emissão de certificado
+### Verificar manualmente os certificados que incluem subdominios é uma maneira de descobrir subdominios
+```bash
+transparencyreport.google.com
+```
 
 ## gau 
 ### Coleta URLs de fontes públicas (Wayback, Common Crawl, etc).
