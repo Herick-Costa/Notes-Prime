@@ -194,8 +194,8 @@ https://securitytrails.com/
 ```
 ## Coleta por certificados digitais
 ### Certificado https que possui certificação SSL
-### Tem um projeto de transparencia sobre a emissão de certificado
 ### Verificar manualmente os certificados que incluem subdominios é uma maneira de descobrir subdominios
+### Tem um projeto de transparencia sobre a emissão de certificado
 ```bash
 transparencyreport.google.com
 ```
