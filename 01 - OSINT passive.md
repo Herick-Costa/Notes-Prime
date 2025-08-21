@@ -192,6 +192,10 @@ https://dnsdumpster.com/
 ```bash
 https://securitytrails.com/
 ```
+## Netcraft
+```bash
+https://netcraft.com/
+```
 ## Coleta por certificados digitais
 ### Certificado https que possui certificação SSL
 ### Verificar manualmente os certificados que incluem subdominios é uma maneira de descobrir subdominios
