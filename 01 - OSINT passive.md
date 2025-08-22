@@ -211,3 +211,17 @@ transparencyreport.google.com
 gau dominio.com
 ```
 
+## Eyeballs 
+### Descobrir ativos/dominios relacionados
+
+```bash
+eyeballs -d alvo.com
+```
+
+## WayBackUrls 
+### Listar URLs e endpoints antigos do alvo do WayBackMachine
+
+```bash
+echo "https://alvo.com" | waybackurls
+cat dominios.txt | waybackurls > saida.txt
+```
