@@ -4,9 +4,11 @@
 ```bash
 host -t txt dominio.com
 ```
-### ?all --> susceptible*
-### ~all --> susceptible*
-### -all --> not susceptible
+```bash
+?all --> susceptible*
+~all --> susceptible*
+-all --> not susceptible
+```
 ### Se não retornar nada está sem configuração
 
 ## exemplo de e-mails falsos
