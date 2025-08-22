@@ -1,3 +1,81 @@
+\# 🔎Information gathering
+
+
+
+\## Gobuster
+
+```bash
+
+gobuster dir -u http://10.10.10.10 -w /usr/share/wordlists/dirb/big.txt --retry
+
+
+
+```
+
+
+
+\## Feroxbuster
+
+```bash
+
+feroxbuster -u http://172.23.1.148/ -w /usr/share/wordlists/seclists/Discovery/Web-Content/raft-large-words.txt -A
+
+feroxbuster -u http://172.23.1.148/ -w /usr/share/wordlists/seclists/Discovery/Web-Content/raft-large-files.txt -A
+
+```
+
+
+
+\## Subdomains
+
+```bash
+
+gobuster vhost -u http://10.10.10.10 -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt --append-domain
+
+wfuzz -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt -H "Host: FUZZ.cmess.thm" --hc 404 -u http://10.201.65.22 (--hw aqui tamanho em Word para tirar/filtrar)
+
+ffuf -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt -u http://FUZZ.cmess.thm -fs 0
+
+dnsmap  robyns-petshop.thm -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt
+
+amass enum -d dominio.com
+
+https://crt.sh/
+
+```
+
+
+
+\## transferência de zona
+
+```bash
+
+host -t ns domínio.com  #para ver os name servers
+
+host -l -a domínio.com ns1.dominio.com
+
+```
+
+\### script automação
+
+```bash
+
+for server in $(host -t ns dominio.com | cut -d " " -f4); do echo "\[+] Trying $server"; host -l -a dominio.com $server 2>/dev/null || echo "No results found for $server"; echo ""; done
+
+```
+
+
+
+
+
+\## Domínios similares / typosquatting
+
+```bash
+
+**urlcrazy empresa.com**  
+
+```
+
 
 ## SPF Sender Policy Framework
 ### Visa identificar quais servidores estão autorizados a enviar emails em nome do seu nominio
