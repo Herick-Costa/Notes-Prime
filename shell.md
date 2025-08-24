@@ -1,4 +1,7 @@
-- **Reverse Shells**: `https://www.revshells.com/?source=post_page-----ae216e7a836f---------------------------------------`
+- **Reverse Shells**:
+```bash
+https://www.revshells.com/?source=post_page-----ae216e7a836f---------------------------------------
+```
 # 🖥 Shells Reversas
 
 ## 🖥 Bash
