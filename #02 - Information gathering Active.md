@@ -1,28 +1,6 @@
 # 🔎Information gathering
 
 
-
-## Gobuster
-
-```bash
-gobuster dir -u http://10.10.10.10 -w /usr/share/wordlists/dirb/big.txt --retry
-
-```
-
-
-
-## Feroxbuster
-
-```bash
-
-feroxbuster -u http://172.23.1.148/ -w /usr/share/wordlists/seclists/Discovery/Web-Content/raft-large-words.txt -A
-
-feroxbuster -u http://172.23.1.148/ -w /usr/share/wordlists/seclists/Discovery/Web-Content/raft-large-files.txt -A
-
-```
-
-
-
 ## Subdomains
 
 ```bash
@@ -209,17 +187,7 @@ ls /usr/share/nmap/scripts
 
 ## Scapy - ferramenta de manipulação de pacotes
 
-## wpscan
-```bash
-wpscan --url http://172.23.1.50:8080/blog
-```
 
-## Nikto
-```bash
-nikto -h https://172.20.20.20 -p 8080
-```
-
-## Burp Suite
 
 
 
