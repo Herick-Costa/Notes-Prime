@@ -35,6 +35,8 @@ nikto -h https://172.20.20.20 -p 8080
 ## wpscan
 ```bash
 wpscan --url http://172.23.1.50:8080/blog
+- wpscan --url http://172.23.1.50:8080/blog --usernames leandro --passwords /usr/share/wordlists/rockyou.txt --enumerate u --force
+
 ```
 
 ## joomscan
