@@ -1,20 +1,17 @@
-\# 🔎Information gathering
+# 🔎Information gathering
 
 
 
-\## Gobuster
+## Gobuster
 
 ```bash
-
 gobuster dir -u http://10.10.10.10 -w /usr/share/wordlists/dirb/big.txt --retry
-
-
 
 ```
 
 
 
-\## Feroxbuster
+## Feroxbuster
 
 ```bash
 
@@ -26,7 +23,7 @@ feroxbuster -u http://172.23.1.148/ -w /usr/share/wordlists/seclists/Discovery/W
 
 
 
-\## Subdomains
+## Subdomains
 
 ```bash
 
@@ -46,7 +43,7 @@ https://crt.sh/
 
 
 
-\## transferência de zona
+## transferência de zona
 
 ```bash
 
@@ -56,7 +53,7 @@ host -l -a domínio.com ns1.dominio.com
 
 ```
 
-\### script automação
+### script automação
 
 ```bash
 
@@ -68,7 +65,7 @@ for server in $(host -t ns dominio.com | cut -d " " -f4); do echo "\[+] Trying $
 
 
 
-\## Domínios similares / typosquatting
+## Domínios similares / typosquatting
 
 ```bash
 
